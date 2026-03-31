@@ -27,6 +27,7 @@ Built with Streamlit, Folium, Plotly, and Segment Anything Model (SAM/SAM2).
 - [Module Categories](#module-categories)
 - [Complete Module List](#complete-module-list)
 - [External APIs Reference](#external-apis-reference)
+- [Remote Structure Detection — APIs & Services Guide](#remote-structure-detection--apis--services-guide)
 - [Core Framework Files](#core-framework-files)
 - [How to Use Individual Modules](#how-to-use-individual-modules)
 - [How to Add a New Module](#how-to-add-a-new-module)
@@ -614,6 +615,184 @@ All APIs are **free** and require **no authentication** unless noted. The applic
 | OpenAQ | 2.0s | 30 |
 | Overpass API | 3.0s | 20 |
 | NASA (DEMO_KEY) | 120s | 0.5 |
+
+---
+
+## Remote Structure Detection — APIs & Services Guide
+
+TerraScout AI combines **4 primary building detection sources** and **5 supporting geospatial APIs** into a unified system for finding structures (buildings, huts, shelters, mining camps) in remote and unmapped areas worldwide. All APIs are **free and require no authentication**.
+
+### Primary Structure Detection Sources
+
+#### 1. Google Open Buildings V3
+
+| Detail | Value |
+|--------|-------|
+| **What it does** | 1.8 billion buildings detected by AI from satellite imagery |
+| **Coverage** | Africa, Asia, Latin America, Caribbean |
+| **Access** | BigQuery public dataset or CSV/GeoParquet tiles from Google Cloud Storage |
+| **Auth** | None (public dataset) |
+| **Key fields** | `area_in_meters`, `confidence` (0–1), `geometry` (WKT polygon), `full_plus_code` |
+| **File** | `src/datasources/open_buildings.py` — class `OpenBuildingsClient` |
+
+**How to use**: Search by bounding box (lat/lon), receive polygons with area and ML confidence score. Filter by `area_in_meters` to isolate mini-structures (<30 m²).
+
+#### 2. Microsoft Global ML Building Footprints
+
+| Detail | Value |
+|--------|-------|
+| **What it does** | 999M+ buildings detected by ML from Bing Maps satellite imagery |
+| **Coverage** | Global (100+ countries) |
+| **Endpoint** | `https://minedbuildings.blob.core.windows.net/global-buildings` |
+| **Auth** | None (public Azure Blob Storage) |
+| **Tile system** | Bing Maps quadkey-based tiling (GeoJSON.gz per tile) |
+| **File** | `src/datasources/ms_buildings.py` — class `MSBuildingsClient` |
+
+**How to use**: Convert coordinates to Bing quadkey, download compressed GeoJSON tiles, filter by area. Methods: `latlon_to_quadkey()`, `fetch_tile_geojson()`, `search_buildings()`.
+
+#### 3. SAM2 (Segment Anything Model 2) — Real-Time AI Detection
+
+| Detail | Value |
+|--------|-------|
+| **What it does** | Real-time segmentation of buildings/huts/shelters directly from live satellite imagery |
+| **Models** | `sam2-hiera-tiny` (fast) → `sam2-hiera-large` (most accurate) |
+| **Imagery source** | Esri World Imagery tiles |
+| **Auth** | None (GPU recommended for performance) |
+| **Deduplication** | DBSCAN clustering (5.5 m threshold at equator) |
+| **File** | `src/datasources/ai_structure_detector.py` — class `AIStructureDetector` |
+
+**Detection prompts and thresholds**:
+
+| Prompt | Threshold |
+|--------|-----------|
+| `"building"` | 0.20 |
+| `"hut, cabin, shack, shed"` | 0.15 |
+| `"shelter, refuge, camp"` | 0.18 |
+| `"house, dwelling, residence"` | 0.22 |
+
+**How to use**: Provide a bounding box → downloads satellite tiles → runs multi-prompt detection → deduplicates overlapping detections via DBSCAN. Methods: `download_satellite_image()`, `detect_structures_multi_prompt()`, `detect_in_bbox()`.
+
+#### 4. OpenStreetMap (Overpass API)
+
+| Detail | Value |
+|--------|-------|
+| **What it does** | Community-mapped buildings, ruins, shelters, airstrips, mines, camps |
+| **Endpoint** | `https://overpass-api.de/api/interpreter` |
+| **Auth** | None |
+| **Rate limit** | ~1 req/sec, timeout max 600s |
+| **Files** | `src/remote_explorer.py`, `src/isolated_buildings_maps.py`, `src/remote_structures_db.py` |
+
+**Key Overpass QL queries for remote structures**:
+
+```
+way["building"](around:radius,lat,lon);          // All buildings
+way["ruins"="yes"](around:radius,lat,lon);        // Ruins
+node["amenity"="shelter"](around:radius,lat,lon);  // Shelters
+way["tourism"="camp_site"](around:radius,lat,lon); // Camps
+way["aeroway"~"aerodrome|runway|helipad"](around:radius,lat,lon); // Airstrips
+node["man_made"~"mineshaft|adit"](around:radius,lat,lon);         // Mines
+way["landuse"="quarry"](around:radius,lat,lon);    // Quarries
+way["landuse"="logging"](around:radius,lat,lon);   // Logging areas
+way["building"="farm"](around:radius,lat,lon);     // Farms
+way["historic"](around:radius,lat,lon);            // Historic sites
+```
+
+#### 5. Global Forest Watch (GLAD Alerts)
+
+| Detail | Value |
+|--------|-------|
+| **What it does** | Satellite-detected deforestation alerts — reveals illegal logging, mining, new settlements |
+| **Endpoint** | `https://data-api.globalforestwatch.org/dataset/gfw_integrated_alerts/latest/query` |
+| **Coverage** | Tropical and subtropical forests |
+| **Auth** | None |
+| **Confidence levels** | `high` (3), `nominal` (2), `low` (1) |
+| **File** | `src/remote_explorer.py` (lines 250–318) |
+
+**How to use**: Send SQL query with GeoJSON geometry and date filters (90-day rolling window). Returns `latitude`, `longitude`, `date`, `confidence` for each alert.
+
+### Supporting Geospatial APIs
+
+#### 6. ISRIC SoilGrids v2.0
+
+| Detail | Value |
+|--------|-------|
+| **What it does** | Soil properties (clay, sand, bulk density, organic carbon) — evaluates if terrain can support construction |
+| **Endpoint** | `https://rest.isric.org/soilgrids/v2.0/properties/query` |
+| **Auth** | None |
+| **Files** | `src/construction_ai.py`, `src/settlement_ai.py` |
+
+**How to use**: Point query by lat/lon. Response contains nested `properties.layers[].depths[0].values.mean` — must iterate layers by name (clay, sand, bdod, soc), never access directly.
+
+#### 7. Open Topo Data (SRTM 90m Elevation)
+
+| Detail | Value |
+|--------|-------|
+| **What it does** | Digital elevation model — slope analysis, terrain accessibility |
+| **Endpoint** | `https://api.opentopodata.org/v1/srtm90m` |
+| **Auth** | None |
+| **Files** | `src/construction_ai.py`, `src/settlement_ai.py` |
+
+**How to use**: Pass pipe-separated coordinates in `locations` parameter. Returns `{"results": [{"elevation": value}]}`.
+
+#### 8. USGS Earthquake Catalog
+
+| Detail | Value |
+|--------|-------|
+| **What it does** | Seismic hazard assessment — historical earthquakes within 200 km radius |
+| **Endpoint** | `https://earthquake.usgs.gov/fdsnws/event/1/query` |
+| **Auth** | None |
+| **File** | `src/construction_ai.py` |
+
+**How to use**: Query by lat/lon/radius, returns GeoJSON with `magnitude`, `place`, `time` per event.
+
+#### 9. Open-Meteo Weather & Climate
+
+| Detail | Value |
+|--------|-------|
+| **What it does** | Weather and climate data — evaluates operational conditions for construction/settlement |
+| **Endpoint** | `https://api.open-meteo.com/v1/forecast` |
+| **Auth** | None |
+| **Files** | `src/construction_ai.py`, `src/settlement_ai.py` |
+
+**How to use**: Query by lat/lon, returns daily time series (temperature, precipitation, wind).
+
+### Unified Multi-Source Aggregator
+
+The `src/remote_structures_db.py` file (class `RemoteStructuresDB`) combines all sources into **5 search modes**:
+
+| Mode | Sources | Speed | Best For |
+|------|---------|-------|----------|
+| `fast` | OSM + Google | Fast | Quick reconnaissance |
+| `comprehensive` | OSM + Google + Microsoft | Medium | Full coverage |
+| `ai_only` | Google + Microsoft | Medium | Unmapped areas (no OSM data) |
+| `ai_live` | SAM2 real-time | Slow (GPU) | Completely unmapped zones |
+| `osm_only` | OpenStreetMap only | Fast | Areas with good OSM coverage |
+
+**Deduplication**: DBSCAN clustering (11 m threshold) with source priority: **SAM2 > Google > Microsoft > OSM**.
+
+### Geographic Coverage Summary
+
+| Source | Coverage | Buildings Mapped |
+|--------|----------|-----------------|
+| Google Open Buildings | Africa, Asia, Latin America | 1.8 billion |
+| Microsoft Buildings | Global (100+ countries) | 999M+ |
+| OpenStreetMap | Global (community-driven, incomplete) | Variable |
+| SAM2 AI | Anywhere (real-time from satellite) | Limited by GPU |
+| GFW GLAD Alerts | Tropical/subtropical forests | ~5–10M alerts/year |
+
+### Key Code Files
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `src/remote_explorer.py` | Primary remote structure explorer UI | 1036 |
+| `src/remote_structures_db.py` | Unified multi-source aggregator | 474 |
+| `src/datasources/open_buildings.py` | Google Open Buildings client | 368 |
+| `src/datasources/ms_buildings.py` | Microsoft Buildings client | 371 |
+| `src/datasources/ai_structure_detector.py` | SAM2 real-time detection | 401 |
+| `src/isolated_buildings_maps.py` | Isolation-based structure scanner | 519 |
+| `src/hidden_structures_maps.py` | Curated global remote outposts database | 217 |
+| `src/settlement_ai.py` | Settlement suitability scoring (8 factors) | 859 |
+| `src/construction_ai.py` | Construction feasibility assessment (7 dimensions) | 737 |
 
 ---
 
