@@ -1,0 +1,68 @@
+# ══════════════════════════════════════════════════════════════
+# TerraScout AI - .gitignore
+# ══════════════════════════════════════════════════════════════
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# --- Environment ---
+.env
+.env.*
+*.env
+venv/
+.venv/
+env/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# --- OS ---
+Thumbs.db
+Desktop.ini
+.DS_Store
+nul
+
+# --- Logs ---
+logs/
+*.log
+
+# --- User Data (generated at runtime) ---
+output/
+projects/
+installed.flag
+
+# --- Backup files ---
+*.backup
+*.bak
+
+# --- Large binary / temporary files ---
+*.zip
+*.tif
+*.tiff
+*.png
+*.jpg
+*.jpeg
+!screenshots/*.png
+
+# --- Test artifacts ---
+api_test_results.json
+test_25_sources_report.json
+TEST_REPORT_35_SOURCES.json
+FINAL_VERIFICATION_REPORT.json
+test_results.txt
+module_test_results.txt
+app_module_ids.txt
+streamlit_output.log
+app_log.txt

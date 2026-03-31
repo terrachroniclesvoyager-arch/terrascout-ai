@@ -1,0 +1,57 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Pocket GIS AI - Requirements
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ─── Core Framework ───
+streamlit>=1.35.0
+leafmap>=0.40.0
+segment-geospatial>=0.12.0
+groundingdino-py>=0.4.0
+
+# ─── Data Processing ───
+pandas>=2.2.0
+geopandas>=1.0.0
+numpy>=2.0.0
+rasterio>=1.4.0
+shapely>=2.0.0
+pyproj>=3.7.0
+
+# ─── Visualization ───
+folium>=0.18.0
+branca>=0.8.0
+streamlit-folium>=0.22.0
+pydeck>=0.9.0
+matplotlib>=3.9.0
+
+# ─── Image Processing ───
+Pillow>=11.0.0
+
+# ─── Scientific Computing ───
+scipy>=1.14.0
+
+# ─── LiDAR Processing ───
+laspy[lazrs]>=2.5.0
+
+# ─── Transformers (IMPORTANT: Pin version for stability) ───
+transformers==4.46.3
+
+# ─── Machine Learning & Advanced Features (Sprint 2-4) ───
+scikit-learn>=1.4.0                 # ML utilities for clustering and similarity
+google-cloud-bigquery>=3.13.0       # Google Open Buildings + AlphaEarth
+earthengine-api>=0.1.380            # Google Earth Engine integration
+geemap>=0.32.0                      # GEE visualization (may conflict with leafmap - verify)
+aiohttp>=3.9.0                      # Async HTTP client for parallel API calls
+pyarrow>=14.0.0                     # GeoParquet and efficient data serialization
+lonboard>=0.9.0                     # GPU-accelerated map rendering (50k+ features)
+
+# ─── Financial Data (Real-Time Dashboard) ───
+yfinance>=0.2.40                    # Yahoo Finance API for real-time stock/commodity data (FREE)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Installation:
+#   pip install -r requirements.txt
+#
+# Note: Some dependencies (google-cloud-bigquery, earthengine-api) are optional
+# and only needed for advanced features (AlphaEarth, Google Open Buildings, GEE).
+# The app will gracefully fallback if these are not installed.
+# ══════════════════════════════════════════════════════════════════════════════
